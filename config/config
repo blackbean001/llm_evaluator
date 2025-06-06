@@ -1,0 +1,117 @@
+PerfRequirement:  # measured in ms, less than
+  TTFT: 3000
+  TPOT: 100
+
+Model:
+  model_name: DeepSeek-R1-Distill-Qwen-7B
+  model_path: /root/.cache/modelscope/hub/models/deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+  tokenizer_path: /root/.cache/modelscope/hub/models/deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+
+Dataset:
+  use_random: False
+  data_name: ceval_gen
+  data_path: /data/jason2.li/gitlab/llm_eval_toolkit/datasets/ceval
+
+Device: gcu
+
+DeployParam:
+  batch_size: 1   # num_prompts, can be set to "auto"
+  max_batch_size: 10  # must be set when batch_size is set "auto"
+  tensor_parallel_size: 1
+  pipeline_parallel_size: 1
+  expert_parallel_size: 1
+  gpu_memory_utilization: 0.78
+  trust_remote_code: True
+  block_size: 64  # fix for gcu
+  enable_chunked_prefill: True
+  enable_prefix_caching: False
+  disable_async_output_proc: True
+  enforce_eager: False
+  distributed_executor_backend: null
+  max_num_seqs: 256
+  enable_thinking: True
+
+ModelKwargs:
+  dtype: bfloat16
+  max_model_len: 8192  # max_seq_len
+  quantization: null
+
+SamplingParams:
+  num_seqs: 1  # Number of generated sequences per prompt
+  max_tokens: 240  # max_out_len, max_gen_tokens
+  output_len: 240  # (1) vllm_utils.benchmark_test --acc: if not 'null', overrides the output length from the dataset for each request; (2) vllm_utils.benchmark_test --perf: output_len of fake request
+  temperature: 0
+  top_p: 1
+  top_k: 1
+  ignore_eos: True
+  keep_special_tokens: True  # skip_special_tokens
+  strict_in_out_len: True
+
+Logging:
+  save_dir: ./outputs/logs
+
+MetricType: PerfAnalysis  # Perf, Acc, PerfTunning, PerfAnalysis
+EvalTool: BenchmarkTest  # select from [BenchmarkTest, BenchmarkServing, OpenCompass, lm_eval, EvalScope]
+InferType: offline  # offline, serving
+
+Acc:
+  OpenCompass: # currently use vllm_utils.evaluate_datasets.run
+    datasets: ceval_gen # comply with OpenCompass parameters
+  BenchmarkTest: # use vllm_utils.benchmark_test --acc, only support vllm backend
+    disable-log-stats: True
+  lm_eval:
+    model: local-completions  # 'vllm', 'local-chat-completions'
+    tasks: ceval-valid  # /usr/local/lib/python3.10/dist-packages/lm_eval/tasks/ceval/_default_ceval_yaml: modify dataset_path
+    num_fewshot: 0
+    seed: 0
+    verbosity: DEBUG
+    log_samples: True
+    show_config: True
+    apply_chat_template: True
+    # base_url and num_concurrent are only for serving mode
+    base_url: http://0.0.0.0:8000/v1/completions
+    num_concurrent: 1
+  EvalScope:  # evalscope eval
+    url: http://0.0.0.0:8000/v1/completions
+    eval_type: service
+    datasets: ceval
+    limit: 10
+
+Perf:
+  # serving
+  BenchmarkServing:  # use vllm_utils.benchmark_serving, default vllm backend
+    input_len: 512
+    dataset_name: random
+    dataset_path: null
+    request_rate: inf
+    host: 0.0.0.0
+    port: 8000
+    endpoint: /v1/completions
+    max_concurrency: null
+  EvalScope:  # evalscope perf
+    max_prompt_length: 5120
+    min_prompt_length: 128
+    url: http://0.0.0.0:8000/v1/completions
+    api: openai
+    dataset: random
+    parallel: 1
+    number: 15
+    read_timeout: 600
+    connect_timeout: 600
+    stream: True
+  # offline
+  BenchmarkTest: # use vllm_utils.benchmark_test --perf, only support vllm backend, currently only support 'hi' input
+    input_len: 512
+
+PerfTunning:
+  BenchmarkTest:
+    max_num_prompts: 100
+    min_num_prompts: 1
+    grid_num_prompts: 10
+  BenchMarkServing:
+    min_request_rate: 0.1
+    max_request_rate: 10
+    grid_request_rate: 1
+    min_num_prompts: 1
+    max_num_prompts: 100
+    grid_num_prompts: 10
