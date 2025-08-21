@@ -12,7 +12,7 @@ Must set the following items in the config, other items can be filled as needed:
 4. InferType: select from [offline, serving].  
 
 Functions:
-1. Perf: BenchmarkTest, BenchmarkServing, Evalscope(可以用于做压测)
+1. Perf: BenchmarkTest, BenchmarkServing, Evalscope
 2. Acc: OpenCompass, BenchmarkTest, lm_eval
 3. PerfAnalysis (from http://git.enflame.cn/yu.liu/codes/-/blob/main/report_process.py)
 4. PerfTunning:  
