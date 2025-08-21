@@ -8,6 +8,7 @@ import socket, threading
 from time import sleep
 from multiprocessing.pool import ThreadPool
 import torch
+from backends.recorder import recording
 import requests
 import time
 
@@ -52,6 +53,9 @@ def main():
         config = yaml.load(f, Loader=yaml.FullLoader)
         
     OutputHWUsage = config['OutputHWUsage']
+    if OutputHWUsage:
+        recorder = recording("GCU", config["Model"]["model_name"])
+        recorder.set_device(0)
 
     required_ttft = config['PerfRequirement']['TTFT']
     required_tpot = config['PerfRequirement']['TPOT']
@@ -124,6 +128,9 @@ def main():
     print("MetricType: %s", MetricType)
     print("EvalTool: %s", EvalTool)
     print("InferType: %s", InferType)
+
+    if OutputHWUsage:
+         recorder.trigger()  # start recording
 
     if MetricType == "Acc":
         if EvalTool == "BenchmarkTest":
@@ -235,6 +242,33 @@ def main():
             os.system(cmd)
             logging.info("Run command: %s", cmd)
             print("Run command: %s", cmd)
+
+    elif MetricType == "PerfAnalysis":
+        assert EvalTool == "BenchmarkTest"
+        input_len =  config["Perf"]["BenchmarkTest"]["input_len"]
+        os.system("mkdir output_perf_analysis")
+        cmd = f"topsprof --enable-activities operator --export-visual-profiler ./output_perf_analysis --export-rawdata \
+                ./output_perf_analysis/MODEL.rawdata --trace all --topstx-domain-include all \
+                python3 -m vllm_utils.benchmark_test \
+                --perf --model {model_path}  \
+                --tensor-parallel-size {tensor_parallel_size} \
+                --max-model-len {max_model_len} \
+                --input-len {input_len} \
+                --output-len {output_len} \
+                --dtype={dtype} \
+                --device {device} \
+                --num-prompts {num_prompts} \
+                --block-size={block_size} " + \
+                "--trust-remote_code " * trust_remote_code + \
+                "--enable-chunked-prefill " * enable_chunked_prefill + \
+                "--enable-prefix-caching " * enable_prefix_caching + \
+                "--disable-async-output-proc " * disable_async_output_proc + \
+                "--enforce-eager" * enforce_eager
+        logging.info("run cmd %s", cmd)
+        print("run cmd %s", cmd)
+        os.system(cmd)
+        os.system("python3 ./utils/run_topsanalytics.py --profiles ./output_perf_analysis/topsprof.vpd --report ./output_perf_analysis/report --mode 2c24s")
+        os.system("python3 ./utils/report_process.py --report ./output_perf_analysis/report")
 
     elif MetricType == "Perf":
         if EvalTool == "BenchmarkTest":
@@ -640,6 +674,14 @@ def main():
             print("best_client_cmd: %s", best_client_cmd)
             print("best_throughput: %s", best_throughput)
     
+    if OutputHWUsage:
+         recorder.trigger()  # end recording
+         recorder.free()
+         GCU_Info = recorder.get_records_summary()
+         
+         logging.info("GCU info: %s", GCU_Info)
+         print("GCU info: %s", GCU_Info)
+
     logging.info(f"Finished running {MetricType} using {EvalTool}")
     print(f"Finished running {MetricType} using {EvalTool}")
 
