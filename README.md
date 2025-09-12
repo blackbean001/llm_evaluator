@@ -14,11 +14,9 @@ Must set the following items in the config, other items can be filled as needed:
 Functions:
 1. Perf: BenchmarkTest, BenchmarkServing, Evalscope
 2. Acc: OpenCompass, BenchmarkTest, lm_eval
-3. PerfAnalysis (from http://git.enflame.cn/yu.liu/codes/-/blob/main/report_process.py)
-4. PerfTunning:  
+3. PerfTunning:  
 (1) BenchmarkTest(tunning params: num_prompts + EngineArgs).  
 (2) BenchmarkServing (tunning params: request_rate, num_prompts + EngineArgs).  
 
 Notes:  
-1. PerfAnalysis supports [BenchmarkTest]. PerfTunning supports [BenchmarkServing, BenchmarkTest].
-2. PerfTunning only supports grid searching with given min max. Possibly add other methods (bisection...). 
+1. PerfTunning only supports grid searching with given min max. Possibly add other methods (bisection...). 
